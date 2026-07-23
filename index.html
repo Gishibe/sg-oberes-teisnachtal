@@ -512,6 +512,63 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
 .el-sort-btn{padding:4px 10px;font-size:11px;font-weight:600;border:1.5px solid var(--gybl);border-radius:20px;background:var(--wh);color:var(--gy);cursor:pointer;transition:all .15s;}
 .el-sort-btn:hover{border-color:var(--gy);}
 .el-sort-btn.on{background:#111827;color:#fff;border-color:#111827;}
+
+/* ══════ MOBILE OPTIMIERUNG v2 ══════ */
+@media(max-width:700px){
+  /* Tabellen horizontal scrollbar mit Touch */
+  .card{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .tbl{min-width:560px;}
+  .tbl th,.tbl td{padding:7px 8px;font-size:12px;white-space:nowrap;}
+  /* Filterzeile kompakter */
+  .filter-inp{font-size:11px;padding:4px 5px;min-width:60px;}
+  /* Buttons touch-freundlich (min 40px) */
+  .btn{min-height:40px;padding:9px 14px;font-size:13px;}
+  .btn-sm{min-height:34px;padding:6px 10px;font-size:12px;}
+  .tbl-actions .btn-sm{min-height:32px;min-width:32px;padding:5px 7px;}
+  /* Tab-Leiste scrollbar */
+  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;padding-bottom:2px;}
+  .tab-btn{white-space:nowrap;flex-shrink:0;font-size:12px;padding:8px 10px;}
+  /* Modals fast vollflächig */
+  .modal{width:94vw!important;max-width:94vw!important;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .modal-body{max-height:60vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  /* Formularfelder: 16px verhindert iOS Auto-Zoom */
+  .fi,.fs,.finp,select.fi{font-size:16px!important;}
+  .filter-inp{font-size:13px!important;}
+  /* Kalender kompakt */
+  .cal-grid{font-size:10px;}
+  .cal-cell{min-height:54px!important;padding:2px!important;}
+  .ev-chip{font-size:8px;padding:1px 3px;gap:1px;}
+  .cal-ha{display:none;} /* HA-Badge auf Mini-Zellen ausblenden */
+  /* Eltern-Ansicht */
+  .eltern-stats{grid-template-columns:repeat(2,1fr)!important;gap:8px;}
+  .eltern-stat .val{font-size:22px;}
+  .rank-grid{grid-template-columns:1fr!important;}
+  .next-3col{grid-template-columns:1fr!important;}
+  /* Seiten-Padding reduziert */
+  .page-body{padding:10px!important;}
+  .page-header{padding:10px 12px!important;}
+  .page-title{font-size:17px!important;}
+  /* Sortier-Buttons Eltern */
+  .el-sort-btn{padding:5px 9px;font-size:10px;}
+  /* Saison-Karten */
+  .card-head{flex-wrap:wrap;gap:8px;}
+  /* Duties Modal */
+  .duty-cat{padding:8px;}
+  /* Bottom-nav sicherer Abstand (iPhone Home-Bar) */
+  .bottom-nav{padding-bottom:env(safe-area-inset-bottom,0);}
+  .app-main{padding-bottom:calc(64px + env(safe-area-inset-bottom,0))!important;}
+}
+@media(max-width:400px){
+  .tbl{min-width:520px;}
+  .eltern-header{padding:14px 12px!important;}
+  .jersey{width:28px;height:25px;}
+  .jersey .jnum{font-size:11px;}
+}
+/* Touch: hover-Effekte deaktivieren wo störend */
+@media(hover:none){
+  .tbl tr:hover td{background:transparent;}
+  .nav-item:hover{background:transparent;}
+}
 </style>
 </head>
 <body>
