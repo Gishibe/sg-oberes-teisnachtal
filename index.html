@@ -2952,10 +2952,8 @@ function renderSpieleTab() {
   var fOpp  = ((document.getElementById('sf-opponent')||{}).value||'').toLowerCase();
   var fHA   = (document.getElementById('sf-ha')||{}).value||'';
   var fTeam = (document.getElementById('sf-team')||{}).value||'';
-  var todaySp = new Date(); todaySp.setHours(23,59,59,0);
   var spiele = events.filter(function(e) {
     if (e.type==='Training'||isSonstige(e.type)) return false;
-    if (new Date(e.date) > todaySp) return false;
     if (fDate && e.date.indexOf(fDate)<0 && fmtDate(e.date).indexOf(fDate)<0) return false;
     if (fType && e.type !== fType) return false;
     if (fOpp  && !(e.opponent||'').toLowerCase().includes(fOpp)) return false;
