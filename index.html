@@ -508,6 +508,10 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
 .jersey .jnum{position:relative;z-index:1;font-family:'Inter Tight',sans-serif;font-size:13px;font-weight:900;color:#fff;letter-spacing:-0.5px;}
 .jersey-sm{width:28px;height:25px;}
 .jersey-sm .jnum{font-size:11px;}
+
+.el-sort-btn{padding:4px 10px;font-size:11px;font-weight:600;border:1.5px solid var(--gybl);border-radius:20px;background:var(--wh);color:var(--gy);cursor:pointer;transition:all .15s;}
+.el-sort-btn:hover{border-color:var(--gy);}
+.el-sort-btn.on{background:#111827;color:#fff;border-color:#111827;}
 </style>
 </head>
 <body>
@@ -1764,6 +1768,50 @@ function renderAuswertung() {
 }
 
 // ELTERN
+var elternPlData = null;
+var elternPlSort = 'name';
+var elternPlOpen = true;
+function setElternSort(key) {
+  elternPlSort = key;
+  ['Name','Num','Tr'].forEach(function(k) {
+    var el = document.getElementById('elSort'+k);
+    if (el) el.classList.remove('on');
+  });
+  var map = {name:'elSortName', num:'elSortNum', tr:'elSortTr'};
+  var b2 = document.getElementById(map[key]);
+  if (b2) b2.classList.add('on');
+  renderElternPlayers();
+}
+function toggleElternPlayers() {
+  elternPlOpen = !elternPlOpen;
+  var w = document.getElementById('elternPlWrap');
+  var a = document.getElementById('elPlArrow');
+  if (w) w.style.display = elternPlOpen ? '' : 'none';
+  if (a) a.innerHTML = elternPlOpen ? '&#x25BC;' : '&#x25B6;';
+}
+function renderElternPlayers() {
+  var tbody = document.getElementById('elternPlBody');
+  if (!tbody || !elternPlData) return;
+  var list = elternPlData.players.slice();
+  if (elternPlSort === 'name') list.sort(function(a,b){return a.name.localeCompare(b.name);});
+  else if (elternPlSort === 'num') list.sort(function(a,b){return (a.jersey_number||999)-(b.jersey_number||999);});
+  else list.sort(function(a,b){return b.tC-a.tC;});
+  var trsLen = elternPlData.trsLen, spsLen = elternPlData.spsLen;
+  var rows = '';
+  for (var i=0; i<list.length; i++) {
+    var p = list[i];
+    var tp = trsLen ? Math.round(p.tC/trsLen*100) : 0;
+    rows += '<tr>' +
+      '<td><div style="display:flex;align-items:center;gap:8px;">' + av(p,28) + (p.jersey_number?jersey(p.jersey_number,true):'') + '<span style="font-weight:600;">' + p.name + '</span></div></td>' +
+      '<td><div class="prog"><div class="prog-bg"><div class="prog-fg ' + progClass(tp) + '" style="width:' + tp + '%"></div></div><span class="prog-pct">' + p.tC + '/' + trsLen + '</span></div></td>' +
+      '<td>' + p.sC + '/' + spsLen + '</td>' +
+      '<td>' + (p.goals > 0 ? badge('b-gold', p.goals + '⚽') : '–') + '</td>' +
+      '<td>' + (p.assists > 0 ? badge('b-blue', p.assists + ' A') : '–') + '</td>' +
+    '</tr>';
+  }
+  tbody.innerHTML = rows;
+}
+
 function renderEltern() {
   var filtPl=getFilteredPlayers();
   var filtEv=getFilteredEvents();
@@ -1831,19 +1879,7 @@ function renderEltern() {
   var trainRows=buildNGRows(allUp.filter(function(e){return e.type==='Training';}).slice(0,5),true);
   var spieleRows=buildNGRows(allUp.filter(function(e){return e.type!=='Training'&&!isSonstige(e.type);}).slice(0,5),false);
   var sonstRows=buildNGRows(allUp.filter(function(e){return isSonstige(e.type);}).slice(0,5),false);
-  var allRows = '';
-  var sortedPl = en.slice().sort(function(a,b){return b.tC-a.tC;});
-  for (var i=0; i<sortedPl.length; i++) {
-    var p = sortedPl[i];
-    var tp = trs.length ? Math.round(p.tC/trs.length*100) : 0;
-    allRows += '<tr>' +
-      '<td><div style="display:flex;align-items:center;gap:8px;">' + av(p,28) + (p.jersey_number?jersey(p.jersey_number,true):'') + '<span style="font-weight:600;">' + p.name + '</span></div></td>' +
-      '<td><div class="prog"><div class="prog-bg"><div class="prog-fg ' + progClass(tp) + '" style="width:' + tp + '%"></div></div><span class="prog-pct">' + p.tC + '/' + trs.length + '</span></div></td>' +
-      '<td>' + p.sC + '/' + sps.length + '</td>' +
-      '<td>' + (p.goals > 0 ? badge('b-gold', p.goals + '⚽') : '–') + '</td>' +
-      '<td>' + (p.assists > 0 ? badge('b-blue', p.assists + '🅰️') : '–') + '</td>' +
-    '</tr>';
-  }
+  elternPlData = {players: en.slice(), trsLen: trs.length, spsLen: sps.length};
   // Letzte 10 Spiele mit Ergebnis
   var pastGames = getFilteredEvents()
     .filter(function(e){ return e.type!=='Training'&&!isSonstige(e.type)&&new Date(e.date)<today; })
@@ -1905,10 +1941,20 @@ function renderEltern() {
       '<div class="next-games-col"><div class="card-head"><div class="card-head-title">Spiele</div></div>'+(spieleRows||'<div class="ng-empty">Keine Spiele geplant</div>')+'</div>' +
       '<div class="next-games-col"><div class="card-head"><div class="card-head-title">Sonstige</div></div>'+(sonstRows||'<div class="ng-empty">Keine Termine</div>')+'</div>' +
     '</div>' +
-    '<div class="card"><div class="card-head"><div class="card-head-title">Alle Spieler</div></div>' +
+    '<div class="card"><div class="card-head" style="cursor:pointer;" onclick="toggleElternPlayers()">' +
+      '<div class="card-head-title">Alle Spieler <span id="elPlArrow" style="font-size:11px;color:var(--gy);">&#x25BC;</span></div>' +
+      '<div style="display:flex;gap:6px;" onclick="event.stopPropagation();">' +
+        '<button class="el-sort-btn on" id="elSortName" onclick="setElternSort(\'name\')">Name</button>' +
+        '<button class="el-sort-btn" id="elSortNum" onclick="setElternSort(\'num\')">Nr.</button>' +
+        '<button class="el-sort-btn" id="elSortTr" onclick="setElternSort(\'tr\')">Training</button>' +
+      '</div>' +
+    '</div>' +
+    '<div id="elternPlWrap">' +
       '<table class="tbl"><thead><tr><th>Spieler</th><th>Training</th><th>Spiele</th><th>Tore</th><th>Assists</th></tr></thead>' +
-      '<tbody>' + allRows + '</tbody></table></div>';
-}
+      '<tbody id="elternPlBody"></tbody></table>' +
+    '</div></div>';
+  renderElternPlayers();
+}}
 
 // MODAL – PLAYER
 function openPlayerModal(editId) {
