@@ -569,6 +569,41 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
   .tbl tr:hover td{background:transparent;}
   .nav-item:hover{background:transparent;}
 }
+
+/* Fix: fixierter Top-Banner überlagert Inhalt */
+@media(max-width:700px){
+  .bottom-nav-sel{
+    padding-top:calc(8px + env(safe-area-inset-top,0));
+    min-height:48px;
+  }
+  .main{padding-top:calc(52px + env(safe-area-inset-top,0))!important;}
+  .app-main{padding-top:calc(52px + env(safe-area-inset-top,0))!important;}
+  /* Eltern-Ansicht hat den Banner ebenfalls */
+  #page-eltern .page-body{padding-top:12px!important;}
+}
+
+/* ══ TOP-BANNER FIX: einzeilig + korrektes Content-Padding ══ */
+@media(max-width:700px){
+  .bottom-nav-sel{
+    flex-wrap:nowrap!important;
+    height:calc(50px + env(safe-area-inset-top,0))!important;
+    min-height:0!important;
+    padding:0 10px!important;
+    padding-top:env(safe-area-inset-top,0)!important;
+    align-items:center!important;
+    overflow:hidden;
+  }
+  .bottom-nav-sel .bns-label{flex-shrink:0;font-size:10px;}
+  .bottom-nav-sel select{
+    flex:1 1 0;min-width:0;max-width:none!important;
+    font-size:12px!important;padding:5px 6px!important;
+    text-overflow:ellipsis;
+  }
+  .main{
+    padding-top:calc(50px + env(safe-area-inset-top,0))!important;
+    padding-bottom:calc(64px + env(safe-area-inset-bottom,0))!important;
+  }
+}
 </style>
 </head>
 <body>
