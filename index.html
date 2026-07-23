@@ -603,6 +603,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
     padding-bottom:calc(64px + env(safe-area-inset-bottom,0))!important;
   }
 }
+
+.ng-note{font-size:12px;color:var(--gyd);margin-top:3px;line-height:1.4;white-space:pre-wrap;}
 </style>
 </head>
 <body>
@@ -2099,7 +2101,8 @@ function renderEltern() {
         haBadge='<span class="ng-ha '+haCls+'">'+e.home_away+'</span>';
       }
       var timeStr=e.time?'<span class="ng-time">'+fmtTime(e.time)+'</span>':'';
-      var locStr=isTr&&e.location?'<span class="ng-time">'+e.location+'</span>':'';
+      var locStr=e.location?'<span class="ng-time">'+e.location+'</span>':'';
+      var noteStr=e.notes?'<div class="ng-note">'+e.notes+'</div>':'';
       var dutyList=(duties[e.id]||[]);
       var dutyStr='';
       if(!isTr&&dutyList.length){
@@ -2118,6 +2121,7 @@ function renderEltern() {
         +'<div class="ng-card-body">'
         +'<div class="ng-card-name">'+name+'</div>'
         +timeStr+locStr
+        +noteStr
         +dutyStr
         +'</div>'
         +'</div>';
