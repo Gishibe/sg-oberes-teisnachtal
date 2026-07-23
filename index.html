@@ -500,6 +500,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
 .filter-inp:focus{border-color:var(--blm);}
 
 .saison-card-team{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:32px;}
+
+.ec-absence{background:#fef3c7;color:#92400e;border:1px dashed #f59e0b;}
 </style>
 </head>
 <body>
@@ -593,6 +595,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
           <button class="tab-btn" onclick="switchTab('spiele')">&#9917; Spiele</button>
           <button class="tab-btn" onclick="switchTab('sonstige')">&#128204; Sonstige</button>
           <button class="tab-btn" onclick="switchTab('saisons')">&#128193; Saisons</button>
+          <button class="tab-btn" onclick="switchTab('abwesenheit')">&#127796; Abwesenheit</button>
         </div>
         <div class="tab-panel on" id="tab-spieler">
           <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
@@ -623,6 +626,12 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
             <button class="btn btn-blue" onclick="openSeasonModal()">+ Saison anlegen</button>
           </div>
           <div id="saisonsContent"></div>
+        </div>
+        <div class="tab-panel" id="tab-abwesenheit">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+            <button class="btn btn-blue" onclick="openAbsenceModal()">+ Abwesenheit eintragen</button>
+          </div>
+          <div class="card"><table class="tbl"><thead><tr><th>Trainer</th><th>Von</th><th>Bis</th><th>Tage</th><th></th></tr></thead><tbody id="absenceBody"></tbody></table></div>
         </div>
       </div>
     </div>
@@ -665,6 +674,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
                 <div style="display:flex;align-items:center;gap:7px;"><span style="width:12px;height:12px;background:var(--gd);border-radius:3px;display:inline-block;"></span><span style="font-size:12px;">Spiel</span></div>
                 <div style="display:flex;align-items:center;gap:7px;"><span style="width:12px;height:12px;background:var(--pu);border-radius:3px;display:inline-block;"></span><span style="font-size:12px;">Test-/Trainingsspiel</span></div>
                 <div style="display:flex;align-items:center;gap:7px;"><span style="width:12px;height:12px;background:var(--gn);border-radius:3px;display:inline-block;"></span><span style="font-size:12px;">Hallenturnier</span></div>
+                <div style="display:flex;align-items:center;gap:7px;"><span style="width:12px;height:12px;background:#fef3c7;border:1px dashed #f59e0b;border-radius:3px;display:inline-block;"></span><span style="font-size:12px;">Trainer abwesend</span></div>
               </div>
             </div>
           </div>
@@ -2363,6 +2373,7 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 let sb, authUser;
 let seasons = [], curSeason = null, curTeam = "Alle";
 let teams = []; // {id, season_id, name}
+let absences = []; // {id, trainer_name, from_date, to_date}
 let playerTeams = {};
 let players = [], events = [], attendance = [], goals = [];
 let calView = 'month', calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
@@ -2502,6 +2513,10 @@ async function loadData() {
   seasons = r1.data || [];
   var rt = await sb.from('teams').select('*').order('name');
   teams = rt.data || [];
+  try {
+    var ra = await sb.from('trainer_absences').select('*').order('from_date');
+    absences = ra.data || [];
+  } catch(e) { absences = []; }
   buildSeasonDropdown();
   var r2 = await sb.from('players').select('*').order('name');
   players = r2.data || [];
@@ -2697,6 +2712,7 @@ function renderTab(tab) {
   else if (tab === 'spiele') renderSpieleTab();
   else if (tab === 'sonstige') renderSonstigeTab();
   else if (tab === 'saisons') renderSaisonsTab();
+  else if (tab === 'abwesenheit') renderAbsenceTab();
 }
 
 // HELPERS
@@ -3066,6 +3082,88 @@ async function deleteTeam(teamId, seasonId) {
 }
 
 
+// TRAINER ABSENCES
+function renderAbsenceTab() {
+  var tbody = document.getElementById('absenceBody');
+  if (!tbody) return;
+  if (!absences.length) {
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">&#x1F334;</div><div class="empty-title">Keine Abwesenheiten</div><div class="empty-sub">Trage ein wann du nicht da bist.</div></div></td></tr>';
+    return;
+  }
+  var rows = '';
+  var sorted = absences.slice().sort(function(a,b){return b.from_date.localeCompare(a.from_date);});
+  for (var i=0; i<sorted.length; i++) {
+    var a = sorted[i];
+    var days = Math.round((new Date(a.to_date) - new Date(a.from_date)) / 86400000) + 1;
+    rows += '<tr>' +
+      '<td style="font-weight:600;">' + a.trainer_name + '</td>' +
+      '<td>' + fmtDate(a.from_date) + '</td>' +
+      '<td>' + fmtDate(a.to_date) + '</td>' +
+      '<td>' + badge('b-gold', days + (days===1?' Tag':' Tage')) + '</td>' +
+      '<td><div class="tbl-actions">' +
+        btn('btn-ghost btn-sm', "openAbsenceModal('" + a.id + "')", '&#x270F;&#xFE0F;') +
+        btn('btn-ghost btn-sm', "deleteAbsence('" + a.id + "')", '&#x1F5D1;&#xFE0F;') +
+      '</div></td>' +
+    '</tr>';
+  }
+  tbody.innerHTML = rows;
+}
+
+function openAbsenceModal(editId) {
+  var a = editId ? absences.find(function(x){return x.id===editId;}) : null;
+  var defName = a ? a.trainer_name : (authUser ? authUser.email.split('@')[0] : '');
+  showModal(
+    '<div class="modal-head"><div class="modal-title">' + (a ? 'Abwesenheit bearbeiten' : 'Abwesenheit eintragen') + '</div><button class="modal-x" onclick="closeModal()">&times;</button></div>' +
+    '<div class="modal-body">' +
+      '<div class="fg"><label class="fl">Trainer *</label><input class="fi" id="abName" value="' + defName + '" placeholder="Name"></div>' +
+      '<div class="fr2">' +
+        '<div class="fg"><label class="fl">Von *</label><input class="fi" type="date" id="abFrom" value="' + ((a&&a.from_date)||'') + '"></div>' +
+        '<div class="fg"><label class="fl">Bis *</label><input class="fi" type="date" id="abTo" value="' + ((a&&a.to_date)||'') + '"></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="modal-foot">' +
+      '<button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>' +
+      '<button class="btn btn-blue" onclick="saveAbsence(' + (editId ? "'" + editId + "'" : 'null') + ')">Speichern</button>' +
+    '</div>'
+  );
+}
+
+async function saveAbsence(editId) {
+  var name = document.getElementById('abName').value.trim();
+  var from = document.getElementById('abFrom').value;
+  var to = document.getElementById('abTo').value;
+  if (!name || !from || !to) { toast('Bitte alle Felder ausfüllen.','er'); return; }
+  if (to < from) { toast('\'Bis\' muss nach \'Von\' liegen.','er'); return; }
+  var data = {trainer_name: name, from_date: from, to_date: to};
+  if (editId) {
+    var r = await sb.from('trainer_absences').update(data).eq('id', editId);
+    if (r.error) { toast('Fehler: '+r.error.message,'er'); return; }
+    var a = absences.find(function(x){return x.id===editId;});
+    if (a) Object.assign(a, data);
+  } else {
+    var r = await sb.from('trainer_absences').insert(data).select().single();
+    if (r.error) { toast('Fehler: '+r.error.message,'er'); return; }
+    absences.push(r.data);
+  }
+  closeModal();
+  renderAbsenceTab();
+  renderCal();
+  toast('Gespeichert ✓','ok');
+}
+
+async function deleteAbsence(id) {
+  var r = await sb.from('trainer_absences').delete().eq('id', id);
+  if (r.error) { toast('Fehler: '+r.error.message,'er'); return; }
+  absences = absences.filter(function(x){return x.id!==id;});
+  renderAbsenceTab();
+  renderCal();
+  toast('Gelöscht ✓','ok');
+}
+
+function getAbsencesForDate(ds) {
+  return absences.filter(function(a){return ds >= a.from_date && ds <= a.to_date;});
+}
+
 // CALENDAR
 function renderCal() {
   if (calView === 'month') renderMonthCal();
@@ -3112,6 +3210,12 @@ function renderMonthCal() {
     var dayEvs = evMap[ds] || [];
     var dayNum = isToday ? '<div style="background:var(--blm);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">' + d + '</div>' : String(d);
     var chips = '';
+    if (authUser) {
+      var dayAbs = getAbsencesForDate(ds);
+      for (var k=0; k<dayAbs.length; k++) {
+        chips += '<span class="ev-chip ec-absence" title="Abwesend: '+dayAbs[k].trainer_name+'">&#x1F334; '+dayAbs[k].trainer_name+'</span>';
+      }
+    }
     for (var j=0; j<dayEvs.length; j++) {
       var ev = dayEvs[j];
       var label = ev.type === 'Training' ? 'Training' : (ev.opponent || ev.type);
@@ -3156,6 +3260,12 @@ function renderWeekCal() {
     var ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
     var dayEvs = evMap[ds] || [];
     var chips = '';
+    if (authUser) {
+      var dayAbs2 = getAbsencesForDate(ds);
+      for (var k=0; k<dayAbs2.length; k++) {
+        chips += '<span class="ev-chip ec-absence" style="display:block;margin-bottom:2px;">&#x1F334; '+dayAbs2[k].trainer_name+'</span>';
+      }
+    }
     for (var j=0; j<dayEvs.length; j++) {
       var ev = dayEvs[j];
       var label = ev.type === 'Training' ? 'Training' : (ev.opponent || ev.type);
