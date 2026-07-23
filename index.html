@@ -1409,11 +1409,14 @@ function renderTrainingTab() {
   for (var i=0; i<trainings.length; i++) {
     var e = trainings[i];
     var attCnt = attendance.filter(function(a) { return a.event_id === e.id && a.status === 'anwesend'; }).length;
+    var attRec = attendance.find(function(a) { return a.event_id === e.id && a.created_by; });
+    var attTt = attRec ? ' erfasst von ' + attRec.created_by : '';
     var attCell = attCnt > 0
-      ? badge('b-green', attCnt + ' dabei')
+      ? '<span title="' + attCnt + ' anwesend' + attTt + '">' + badge('b-green', attCnt + ' dabei') + '</span>'
       : btn('btn-ghost btn-sm', "openAttModal('" + e.id + "')", 'Erfassen');
     var teamBadge = e.team ? badge('b-blue', e.team) : '<span style="color:var(--gy);font-size:12px;">–</span>';
-    rows += '<tr>' +
+    var cbTt = e.created_by ? ' title="Erstellt von: ' + e.created_by + '"' : '';
+    rows += '<tr' + cbTt + '>' +
       '<td><b>' + fmtDate(e.date,{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}) + '</b></td>' +
       '<td>' + fmtTime(e.time) + '</td>' +
       '<td>' + teamBadge + '</td>' +
@@ -1483,8 +1486,11 @@ function renderSpieleTab() {
     var attCnt = attendance.filter(function(a) { return a.event_id === e.id && a.status === 'anwesend'; }).length;
     var haBadge = e.home_away === 'Heim' ? badge('b-blue', 'Heim') : e.home_away === 'Auswärts' ? badge('b-gold', 'Auswärts') : '–';
     var teamBadge = e.team ? badge('b-blue', e.team) : '<span style="color:var(--gy);font-size:12px;">–</span>';
-    var attCell = attCnt > 0 ? badge('b-green', attCnt + ' dabei') : btn('btn-ghost btn-sm', "openAttModal('" + e.id + "')", 'Erfassen');
-    rows += '<tr>' +
+    var attRec2 = attendance.find(function(a) { return a.event_id === e.id && a.created_by; });
+    var attTt2 = attRec2 ? ' erfasst von ' + attRec2.created_by : '';
+    var attCell = attCnt > 0 ? '<span title="' + attCnt + ' anwesend' + attTt2 + '">' + badge('b-green', attCnt + ' dabei') + '</span>' : btn('btn-ghost btn-sm', "openAttModal('" + e.id + "')", 'Erfassen');
+    var cbTt2 = e.created_by ? ' title="Erstellt von: ' + e.created_by + '"' : '';
+    rows += '<tr' + cbTt2 + '>' +
       '<td><b>' + fmtDate(e.date,{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}) + '</b></td>' +
       '<td>' + fmtTime(e.time) + '</td>' +
       '<td>' + badge(evBadgeClass(e.type), e.type) + '</td>' +
@@ -1718,7 +1724,8 @@ function renderAbsenceTab() {
   for (var i=0; i<sorted.length; i++) {
     var a = sorted[i];
     var days = Math.round((new Date(a.to_date) - new Date(a.from_date)) / 86400000) + 1;
-    rows += '<tr>' +
+    var cbTt3 = a.created_by ? ' title="Eingetragen von: ' + a.created_by + '"' : '';
+    rows += '<tr' + cbTt3 + '>' +
       '<td style="font-weight:600;">' + a.trainer_name + '</td>' +
       '<td>' + fmtDate(a.from_date) + '</td>' +
       '<td>' + fmtDate(a.to_date) + '</td>' +
@@ -1757,7 +1764,7 @@ async function saveAbsence(editId) {
   var to = document.getElementById('abTo').value;
   if (!name || !from || !to) { toast('Bitte alle Felder ausfüllen.','er'); return; }
   if (to < from) { toast('\'Bis\' muss nach \'Von\' liegen.','er'); return; }
-  var data = {trainer_name: name, from_date: from, to_date: to};
+  var data = {trainer_name: name, from_date: from, to_date: to, created_by: authUser ? authUser.email : null};
   if (editId) {
     var r = await sb.from('trainer_absences').update(data).eq('id', editId);
     if (r.error) { toast('Fehler: '+r.error.message,'er'); return; }
@@ -2321,6 +2328,7 @@ async function savePlayer(editId) {
   if (!name) { toast('Name ist erforderlich.','er'); return; }
   var jerseyEl = document.getElementById('pJersey');
   var data = {
+    created_by: authUser ? authUser.email : null,
     name: name,
     birthdate: document.getElementById('pBirth').value || null,
     active: document.getElementById('pActive').value === 'true',
@@ -2407,6 +2415,7 @@ async function saveEvent(editId) {
   if (!curSeason) { toast('Bitte zuerst eine Saison auswählen.','er'); return; }
   var data = {
     type: type, date: date, season_id: curSeason.id,
+    created_by: authUser ? authUser.email : null,
     time: document.getElementById('evTime').value || null,
     location: document.getElementById('evLoc').value.trim() || null,
     opponent: (document.getElementById('evOpp') && document.getElementById('evOpp').value.trim()) || null,
@@ -2543,7 +2552,7 @@ async function saveAtt(eid, isSpiel) {
   var attArr = activePl.map(function(p) {
     var row = document.getElementById('ar-' + p.id);
     var st = (pendAtt[eid] && pendAtt[eid][p.id]) || (row && row.getAttribute('data-st')) || 'na';
-    return {player_id: p.id, event_id: eid, status: st};
+    return {player_id: p.id, event_id: eid, status: st, created_by: authUser ? authUser.email : null};
   });
   var rDel=await sb.from('attendance').delete().eq('event_id',eid);
   if(rDel.error){toast('Fehler: '+rDel.error.message,'er');return;}
