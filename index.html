@@ -502,6 +502,12 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
 .saison-card-team{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:32px;}
 
 .ec-absence{background:#fef3c7;color:#92400e;border:1px dashed #f59e0b;}
+
+.jersey{display:inline-flex;align-items:center;justify-content:center;position:relative;width:34px;height:30px;flex-shrink:0;}
+.jersey svg{position:absolute;inset:0;width:100%;height:100%;}
+.jersey .jnum{position:relative;z-index:1;font-family:'Inter Tight',sans-serif;font-size:13px;font-weight:900;color:#fff;letter-spacing:-0.5px;}
+.jersey-sm{width:28px;height:25px;}
+.jersey-sm .jnum{font-size:11px;}
 </style>
 </head>
 <body>
@@ -601,7 +607,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
           <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
             <button class="btn btn-blue" onclick="openPlayerModal()">+ Spieler anlegen</button>
           </div>
-          <div class="card" style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Foto</th><th class="th-filter" onclick="plSort('name')">Name <span class="sort-ico" id="pico-name">&#x25B2;</span></th><th class="th-filter" onclick="plSort('birthdate')">Geburtsdatum <span class="sort-ico" id="pico-birthdate">&#x25B3;</span></th><th class="th-filter" onclick="plSort('age')">Alter <span class="sort-ico" id="pico-age">&#x25B3;</span></th><th>Status</th><th>Mannschaft</th><th></th></tr><tr class="filter-row"><td></td><td><input class="filter-inp" id="pf-name" oninput="renderSpielersTab()" placeholder="Name..."></td><td></td><td></td><td><select class="filter-inp" id="pf-status" onchange="renderSpielersTab()"><option value="">Alle</option><option value="aktiv">Aktiv</option><option value="inaktiv">Inaktiv</option></select></td><td><select class="filter-inp" id="pf-team" onchange="renderSpielersTab()"><option value="">Alle</option></select></td><td></td></tr></thead><tbody id="spielerBody"></tbody></table></div>
+          <div class="card" style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Foto</th><th class="th-filter" onclick="plSort('jersey')" style="width:56px;">Nr. <span class="sort-ico" id="pico-jersey">&#x25B3;</span></th><th class="th-filter" onclick="plSort('name')">Name <span class="sort-ico" id="pico-name">&#x25B2;</span></th><th class="th-filter" onclick="plSort('birthdate')">Geburtsdatum <span class="sort-ico" id="pico-birthdate">&#x25B3;</span></th><th class="th-filter" onclick="plSort('age')">Alter <span class="sort-ico" id="pico-age">&#x25B3;</span></th><th>Status</th><th>Mannschaft</th><th></th></tr><tr class="filter-row"><td></td><td></td><td><input class="filter-inp" id="pf-name" oninput="renderSpielersTab()" placeholder="Name..."></td><td></td><td></td><td><select class="filter-inp" id="pf-status" onchange="renderSpielersTab()"><option value="">Alle</option><option value="aktiv">Aktiv</option><option value="inaktiv">Inaktiv</option></select></td><td><select class="filter-inp" id="pf-team" onchange="renderSpielersTab()"><option value="">Alle</option></select></td><td></td></tr></thead><tbody id="spielerBody"></tbody></table></div>
         </div>
         <div class="tab-panel" id="tab-training">
           <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
@@ -2716,6 +2722,17 @@ function renderTab(tab) {
 }
 
 // HELPERS
+function jersey(num, sm) {
+  if (!num && num !== 0) return '';
+  var cls = sm ? 'jersey jersey-sm' : 'jersey';
+  return '<span class="'+cls+'" title="Rückennummer '+num+'">'
+    + '<svg viewBox="0 0 40 36" xmlns="http://www.w3.org/2000/svg">'
+    + '<path d="M12 2 L16 5 Q20 8 24 5 L28 2 L38 8 L34 15 L30 13 L30 34 L10 34 L10 13 L6 15 L2 8 Z" fill="#111827" stroke="#374151" stroke-width="1"/>'
+    + '</svg>'
+    + '<span class="jnum">'+num+'</span>'
+    + '</span>';
+}
+
 function av(p, sz) {
   sz = sz || 32;
   if (p && p.photo_url) {
@@ -2776,7 +2793,7 @@ var plSortKey = 'name', plSortDir = 'asc';
 function plSort(key) {
   if (plSortKey === key) plSortDir = plSortDir === 'asc' ? 'desc' : 'asc';
   else { plSortKey = key; plSortDir = 'asc'; }
-  ['name','birthdate','age'].forEach(function(k) {
+  ['jersey','name','birthdate','age'].forEach(function(k) {
     var el = document.getElementById('pico-'+k);
     if (el) el.innerHTML = k === plSortKey ? (plSortDir==='asc'?'&#x25B2;':'&#x25BC;') : '&#x25B3;';
   });
@@ -2806,22 +2823,26 @@ function renderSpielersTab() {
     var va, vb;
     if (plSortKey === 'birthdate') { va=a.birthdate||''; vb=b.birthdate||''; }
     else if (plSortKey === 'age') { va=a.birthdate||'9999'; vb=b.birthdate||'9999'; }
+    else if (plSortKey === 'jersey') {
+      var na2 = a.jersey_number || 999, nb2 = b.jersey_number || 999;
+      return plSortDir === 'asc' ? na2 - nb2 : nb2 - na2;
+    }
     else { va=a.name||''; vb=b.name||''; }
     var r = va.localeCompare(vb);
     return plSortDir === 'asc' ? r : -r;
   });
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">&#x1F464;</div><div class="empty-title">Keine Spieler gefunden</div></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">&#x1F464;</div><div class="empty-title">Keine Spieler gefunden</div></div></td></tr>';
     return;
   }
   var rows = '';
   for (var i=0; i<list.length; i++) {
     var p = list[i];
     var ptList = (playerTeams[p.id]||[]).join(', ') || '-';
-    var jBadge = p.jersey_number ? '<span class="badge b-blue" style="margin-right:4px;">'+p.jersey_number+'</span>' : '';
     rows += '<tr>' +
       '<td>' + av(p, 36) + '</td>' +
-      '<td style="font-weight:600;">' + jBadge + p.name + '</td>' +
+      '<td>' + (p.jersey_number ? jersey(p.jersey_number) : '<span style="color:var(--gybl);">–</span>') + '</td>' +
+      '<td style="font-weight:600;">' + p.name + '</td>' +
       '<td>' + fmtDate(p.birthdate) + '</td>' +
       '<td>' + calcAge(p.birthdate) + '</td>' +
       '<td>' + badge(p.active !== false ? 'b-green' : 'b-gray', p.active !== false ? 'Aktiv' : 'Inaktiv') + '</td>' +
@@ -2834,7 +2855,7 @@ function renderSpielersTab() {
   }
   var total = players.length;
   tbody.innerHTML = rows + (list.length < total
-    ? '<tr><td colspan="7" style="text-align:center;padding:6px;font-size:11px;color:var(--gy);">' + list.length + ' von ' + total + ' Spielern</td></tr>' : '');
+    ? '<tr><td colspan="8" style="text-align:center;padding:6px;font-size:11px;color:var(--gy);">' + list.length + ' von ' + total + ' Spielern</td></tr>' : '');
 }
 
 
@@ -3345,7 +3366,8 @@ function renderAuswertung() {
         '<div class="rank-med">' + (meds[i]||'') + '</div>' +
         '<div class="rank-pos">' + (i>=3?i+1:'') + '</div>' +
         av(p, 26) +
-        '<div class="rank-name">' + p.name + (p.jersey_number?'<span class="rank-jersey">'+p.jersey_number+'</span>':'') + '</div>' +
+        '<div class="rank-name">' + p.name + '</div>' +
+        (p.jersey_number?jersey(p.jersey_number,true):'') +
         '<div class="rank-val">' + p[key] + (icon?' '+icon:'') + '</div>' +
       '</div>';
     }
@@ -3366,7 +3388,7 @@ function renderAuswertung() {
     var p = sorted[i];
     var tp = trs.length > 0 ? Math.round(p.tC/trs.length*100) : 0;
     rows += '<tr>' +
-      '<td><div style="display:flex;align-items:center;gap:8px;">' + av(p,30) + '<span style="font-weight:600;">' + p.name + '</span>' + (p.jersey_number?'<span class="rank-jersey">'+p.jersey_number+'</span>':'') + '</div></td>' +
+      '<td><div style="display:flex;align-items:center;gap:8px;">' + av(p,30) + (p.jersey_number?jersey(p.jersey_number,true):'') + '<span style="font-weight:600;">' + p.name + '</span></div></td>' +
       '<td><b>' + p.tC + '</b><span style="color:var(--gy)"> /' + trs.length + '</span></td>' +
       '<td><div class="prog"><div class="prog-bg"><div class="prog-fg ' + progClass(tp) + '" style="width:' + tp + '%"></div></div><span class="prog-pct">' + tp + '%</span></div></td>' +
       '<td>' + p.sC + '/' + sps.length + '</td>' +
@@ -3402,7 +3424,7 @@ function renderEltern() {
     var out = '';
     for (var i=0; i<list.length; i++) {
       var rp=list[i];
-      out += '<div class="rank-row"><div class="rank-med">' + (meds[i]||'') + '</div>' + av(rp,26) + '<div class="rank-name">' + rp.name + (rp.jersey_number?'<span class="rank-jersey">'+rp.jersey_number+'</span>':'') + '</div><div class="rank-val">' + rp[key] + (ico?' '+ico:'') + '</div></div>';
+      out += '<div class="rank-row"><div class="rank-med">' + (meds[i]||'') + '</div>' + av(rp,26) + '<div class="rank-name">' + rp.name + '</div>' + (rp.jersey_number?jersey(rp.jersey_number,true):'') + '<div class="rank-val">' + rp[key] + (ico?' '+ico:'') + '</div></div>';
     }
     return out;
   }
@@ -3452,7 +3474,7 @@ function renderEltern() {
     var p = sortedPl[i];
     var tp = trs.length ? Math.round(p.tC/trs.length*100) : 0;
     allRows += '<tr>' +
-      '<td><div style="display:flex;align-items:center;gap:8px;">' + av(p,28) + '<span style="font-weight:600;">' + p.name + '</span>' + (p.jersey_number?'<span class="rank-jersey">'+p.jersey_number+'</span>':'') + '</div></td>' +
+      '<td><div style="display:flex;align-items:center;gap:8px;">' + av(p,28) + (p.jersey_number?jersey(p.jersey_number,true):'') + '<span style="font-weight:600;">' + p.name + '</span></div></td>' +
       '<td><div class="prog"><div class="prog-bg"><div class="prog-fg ' + progClass(tp) + '" style="width:' + tp + '%"></div></div><span class="prog-pct">' + p.tC + '/' + trs.length + '</span></div></td>' +
       '<td>' + p.sC + '/' + sps.length + '</td>' +
       '<td>' + (p.goals > 0 ? badge('b-gold', p.goals + '⚽') : '–') + '</td>' +
