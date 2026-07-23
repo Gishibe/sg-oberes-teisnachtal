@@ -2436,7 +2436,20 @@ async function doLogout() {
   if (ea) ea.innerHTML = '';
 }
 
+var ELTERN_PW = 'SGOT2026';
 function openParent() {
+  // Bereits freigeschaltet in dieser Sitzung?
+  if (sessionStorage.getItem('elternOk') === '1') { openParentInternal(); return; }
+  var pw = prompt('Passwort f\u00fcr die Eltern-Ansicht:');
+  if (pw === null) return;
+  if (pw.trim() !== ELTERN_PW) {
+    alert('Falsches Passwort.');
+    return;
+  }
+  try { sessionStorage.setItem('elternOk','1'); } catch(e) {}
+  openParentInternal();
+}
+function openParentInternal() {
   if (!sb) {
     try {
       sb = window.supabase.createClient(SB_URL, SB_KEY, {
