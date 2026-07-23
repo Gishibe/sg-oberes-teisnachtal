@@ -697,6 +697,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
           <button class="tab-btn" onclick="switchTab('sonstige')">&#128204; Sonstige</button>
           <button class="tab-btn" onclick="switchTab('saisons')">&#128193; Saisons</button>
           <button class="tab-btn" onclick="switchTab('abwesenheit')">&#127796; Abwesenheit</button>
+          <button class="tab-btn" onclick="switchTab('trainer')">&#127919; Trainer</button>
         </div>
         <div class="tab-panel on" id="tab-spieler">
           <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
@@ -733,6 +734,13 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
             <button class="btn btn-blue" onclick="openAbsenceModal()">+ Abwesenheit eintragen</button>
           </div>
           <div class="card"><table class="tbl"><thead><tr><th>Trainer</th><th>Von</th><th>Bis</th><th>Tage</th><th></th></tr></thead><tbody id="absenceBody"></tbody></table></div>
+        </div>
+        <div class="tab-panel" id="tab-trainer">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+            <button class="btn btn-blue" onclick="openTrainerModal()">+ Trainer anlegen</button>
+          </div>
+          <div class="card"><table class="tbl"><thead><tr><th>Name</th><th>E-Mail</th><th>Mannschaften</th><th></th></tr></thead><tbody id="trainerBody"></tbody></table></div>
+          <div style="font-size:12px;color:var(--gy);margin-top:10px;line-height:1.5;">&#x2139;&#xFE0F; Hinweis: Zusätzlich muss für jeden Trainer in Supabase &rarr; Authentication &rarr; Users ein Benutzer mit derselben E-Mail angelegt werden (für das Login). Trainer <b>mit</b> zugeordneten Mannschaften sehen nur diese; Trainer ohne Eintrag hier haben vollen Zugriff.</div>
         </div>
       </div>
     </div>
@@ -827,6 +835,8 @@ let sb, authUser;
 let seasons = [], curSeason = null, curTeam = "Alle";
 let teams = []; // {id, season_id, name}
 let absences = []; // {id, trainer_name, from_date, to_date}
+let trainers = []; // {id, name, email, teams[]}
+let myTrainer = null; // restriction record for logged-in user
 let playerTeams = {};
 let players = [], events = [], attendance = [], goals = [];
 let calView = 'month', calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
@@ -841,7 +851,7 @@ document.addEventListener('DOMContentLoaded', function() {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, flowType: 'implicit' }
     });
     sb.auth.getSession().then(function(r) {
-      if (r.data.session) { authUser = r.data.session.user; startApp(); }
+      if (r.data.session) { authUser = r.data.session.user; updateMyTrainer(); startApp(); }
     });
   } catch(e) {
     document.getElementById('lErr').textContent = 'Verbindungsfehler: ' + e.message;
@@ -864,7 +874,7 @@ async function doLogin() {
       errEl.textContent = res.error.message.includes('Invalid') ? 'Falsche E-Mail oder Passwort.' : 'Fehler: ' + res.error.message;
       return;
     }
-    authUser = res.data.user; startApp();
+    authUser = res.data.user; updateMyTrainer(); startApp();
   } catch(e) {
     btn.disabled = false; btn.textContent = 'Einloggen';
     errEl.textContent = 'Netzwerkfehler. Seite neu laden.';
@@ -983,6 +993,11 @@ async function loadData() {
     var ra = await sb.from('trainer_absences').select('*').order('from_date');
     absences = ra.data || [];
   } catch(e) { absences = []; }
+  try {
+    var rtr = await sb.from('trainers').select('*').order('name');
+    trainers = rtr.data || [];
+  } catch(e) { trainers = []; }
+  updateMyTrainer();
   buildSeasonDropdown();
   var r2 = await sb.from('players').select('*').order('name');
   players = r2.data || [];
@@ -1001,6 +1016,28 @@ async function loadData() {
 // Team filter additions for v9
 var _v9_state_done = true;
 
+function updateMyTrainer() {
+  myTrainer = null;
+  if (authUser && authUser.email) {
+    var em = authUser.email.toLowerCase();
+    myTrainer = trainers.find(function(t){return (t.email||'').toLowerCase() === em;}) || null;
+  }
+}
+function teamAllowed(team) {
+  if (!authUser) return true; // Eltern-Ansicht: keine Trainer-Beschränkung
+  if (!myTrainer || !myTrainer.teams || !myTrainer.teams.length) return true;
+  if (!team) return true;
+  return myTrainer.teams.indexOf(team) >= 0;
+}
+function playerAllowed(p) {
+  if (!authUser) return true;
+  if (!myTrainer || !myTrainer.teams || !myTrainer.teams.length) return true;
+  var pts = playerTeams[p.id] || [];
+  if (!pts.length) return true;
+  for (var i=0;i<pts.length;i++) if (myTrainer.teams.indexOf(pts[i])>=0) return true;
+  return false;
+}
+
 function buildTeamFilter() {
   var teamSet = new Set();
   // Teams from current season (new model)
@@ -1008,7 +1045,8 @@ function buildTeamFilter() {
   seasonTeams.forEach(function(t){teamSet.add(t.name);});
   // Fallback: teams from playerTeams (old model)
   Object.values(playerTeams).forEach(function(ts){ts.forEach(function(t){teamSet.add(t);});});
-  var arr = ['Alle'].concat(Array.from(teamSet).sort());
+  var teamArr = Array.from(teamSet).filter(function(t){return teamAllowed(t);}).sort();
+  var arr = ['Alle'].concat(teamArr);
   var opts = arr.map(function(t){return '<option value="'+t+'"'+(t===curTeam?' selected':'')+'>'+(t==='Alle'?'Alle Mannschaften':t)+'</option>';}).join('');
   var s1=document.getElementById('teamSel'); if(s1) s1.innerHTML=arr.map(function(t){return '<option value="'+t+'"'+(t===curTeam?' selected':'')+'>'+ t+'</option>';}).join('');
   var s2=document.getElementById('teamSelMobile'); if(s2) s2.innerHTML=s1?s1.innerHTML:'';
@@ -1045,8 +1083,9 @@ function onElternTeamChange(){
   renderEltern();
 }
 function getFilteredPlayers(){
-  if(curTeam==='Alle') return players;
-  return players.filter(function(p){return (playerTeams[p.id]||[]).indexOf(curTeam)>=0;});
+  var base = players.filter(function(p){ return playerAllowed(p); });
+  if(curTeam==='Alle') return base;
+  return base.filter(function(p){return (playerTeams[p.id]||[]).indexOf(curTeam)>=0;});
 }
 function addCustomTeam() {
   var inp=document.getElementById('pTeamCustom');
@@ -1071,7 +1110,11 @@ function getSelectedTeams(){
 }
 
 function isSonstige(t){return t==='Vereinsfest'||t==='Elternabend'||t==='Sonstiges';}
-function getFilteredEvents(){if(curTeam==='Alle')return events;return events.filter(function(e){return !e.team||e.team===curTeam;});}
+function getFilteredEvents(){
+  var base = events.filter(function(e){ return teamAllowed(e.team); });
+  if(curTeam==='Alle') return base;
+  return base.filter(function(e){return !e.team||e.team===curTeam;});
+}
 
 function buildSeasonDropdown() {
   var opts = '';
@@ -1179,6 +1222,7 @@ function renderTab(tab) {
   else if (tab === 'sonstige') renderSonstigeTab();
   else if (tab === 'saisons') renderSaisonsTab();
   else if (tab === 'abwesenheit') renderAbsenceTab();
+  else if (tab === 'trainer') renderTrainerTab();
 }
 
 // HELPERS
@@ -1273,6 +1317,7 @@ function renderSpielersTab() {
   var fStatus = (document.getElementById('pf-status')||{}).value||'';
   var fTeam   = (document.getElementById('pf-team')||{}).value||'';
   var list = players.filter(function(p) {
+    if (!playerAllowed(p)) return false;
     if (fName && !p.name.toLowerCase().includes(fName)) return false;
     if (fStatus === 'aktiv' && p.active === false) return false;
     if (fStatus === 'inaktiv' && p.active !== false) return false;
@@ -1344,6 +1389,7 @@ function renderTrainingTab() {
   var fLoc   = ((document.getElementById('tf-loc')||{}).value||'').toLowerCase();
   var trainings = events.filter(function(e) {
     if (e.type !== 'Training') return false;
+    if (!teamAllowed(e.team)) return false;
     if (fDate && e.date.indexOf(fDate)<0 && fmtDate(e.date).indexOf(fDate)<0) return false;
     if (fTeam && e.team !== fTeam) return false;
     if (fLoc  && !(e.location||'').toLowerCase().includes(fLoc)) return false;
@@ -1414,6 +1460,7 @@ function renderSpieleTab() {
   var fTeam = (document.getElementById('sf-team')||{}).value||'';
   var spiele = events.filter(function(e) {
     if (e.type==='Training'||isSonstige(e.type)) return false;
+    if (!teamAllowed(e.team)) return false;
     if (fDate && e.date.indexOf(fDate)<0 && fmtDate(e.date).indexOf(fDate)<0) return false;
     if (fType && e.type !== fType) return false;
     if (fOpp  && !(e.opponent||'').toLowerCase().includes(fOpp)) return false;
@@ -1561,6 +1608,103 @@ async function deleteTeam(teamId, seasonId) {
 }
 
 
+// TRAINER MANAGEMENT
+function renderTrainerTab() {
+  var tbody = document.getElementById('trainerBody');
+  if (!tbody) return;
+  if (!trainers.length) {
+    tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div class="empty-icon">&#x1F3AF;</div><div class="empty-title">Noch keine Trainer</div><div class="empty-sub">Lege Trainer an und ordne sie Mannschaften zu.</div></div></td></tr>';
+    return;
+  }
+  var rows = '';
+  for (var i=0; i<trainers.length; i++) {
+    var t = trainers[i];
+    var tms = (t.teams||[]).length
+      ? (t.teams||[]).map(function(x){return badge('b-blue', x);}).join(' ')
+      : badge('b-gold', 'Voller Zugriff');
+    rows += '<tr>' +
+      '<td style="font-weight:600;">' + t.name + '</td>' +
+      '<td style="font-size:12px;color:var(--gy);">' + t.email + '</td>' +
+      '<td>' + tms + '</td>' +
+      '<td><div class="tbl-actions">' +
+        btn('btn-ghost btn-sm', "openTrainerModal('" + t.id + "')", '&#x270F;&#xFE0F;') +
+        btn('btn-ghost btn-sm', "deleteTrainer('" + t.id + "')", '&#x1F5D1;&#xFE0F;') +
+      '</div></td>' +
+    '</tr>';
+  }
+  tbody.innerHTML = rows;
+}
+
+function openTrainerModal(editId) {
+  var t = editId ? trainers.find(function(x){return x.id===editId;}) : null;
+  var selTeams = (t && t.teams) || [];
+  // Available teams from current season + all known team names
+  var teamSet = new Set();
+  teams.forEach(function(x){teamSet.add(x.name);});
+  Object.values(playerTeams).forEach(function(ts){ts.forEach(function(x){teamSet.add(x);});});
+  var teamOpts = Array.from(teamSet).sort();
+  var chks = teamOpts.map(function(tm) {
+    var checked = selTeams.indexOf(tm) >= 0 ? ' checked' : '';
+    return '<label style="display:flex;align-items:center;gap:7px;padding:6px 0;cursor:pointer;">' +
+      '<input type="checkbox" class="trainer-team-chk" value="' + tm + '"' + checked + '> ' + tm + '</label>';
+  }).join('');
+  showModal(
+    '<div class="modal-head"><div class="modal-title">' + (t ? 'Trainer bearbeiten' : 'Trainer anlegen') + '</div><button class="modal-x" onclick="closeModal()">&times;</button></div>' +
+    '<div class="modal-body">' +
+      '<div class="fg"><label class="fl">Name *</label><input class="fi" id="trName" value="' + ((t&&t.name)||'') + '" placeholder="Vor- und Nachname"></div>' +
+      '<div class="fg"><label class="fl">E-Mail (Login) *</label><input class="fi" type="email" id="trEmail" value="' + ((t&&t.email)||'') + '" placeholder="trainer@beispiel.de"></div>' +
+      '<div class="fg"><label class="fl">Mannschaften</label>' +
+      '<div style="font-size:11px;color:var(--gy);margin-bottom:4px;">Keine Auswahl = voller Zugriff auf alle Mannschaften</div>' +
+      (chks || '<div style="font-size:12px;color:var(--gy);">Noch keine Mannschaften angelegt (Reiter Saisons)</div>') +
+      '</div>' +
+    '</div>' +
+    '<div class="modal-foot">' +
+      '<button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>' +
+      '<button class="btn btn-blue" onclick="saveTrainer(' + (editId ? "'" + editId + "'" : 'null') + ')">Speichern</button>' +
+    '</div>'
+  );
+}
+
+async function saveTrainer(editId) {
+  var name = document.getElementById('trName').value.trim();
+  var email = document.getElementById('trEmail').value.trim().toLowerCase();
+  if (!name || !email) { toast('Name und E-Mail sind erforderlich.','er'); return; }
+  var selTeams = [];
+  document.querySelectorAll('.trainer-team-chk:checked').forEach(function(c){selTeams.push(c.value);});
+  var data = {name: name, email: email, teams: selTeams};
+  if (editId) {
+    var r = await sb.from('trainers').update(data).eq('id', editId);
+    if (r.error) { toast('Fehler: '+r.error.message,'er'); return; }
+    var t = trainers.find(function(x){return x.id===editId;});
+    if (t) Object.assign(t, data);
+  } else {
+    var r = await sb.from('trainers').insert(data).select().single();
+    if (r.error) {
+      if (r.error.code === '23505') toast('E-Mail bereits vorhanden.','er');
+      else toast('Fehler: '+r.error.message,'er');
+      return;
+    }
+    trainers.push(r.data);
+  }
+  updateMyTrainer();
+  buildTeamFilter();
+  closeModal();
+  renderTrainerTab();
+  toast('Gespeichert ✓','ok');
+}
+
+async function deleteTrainer(id) {
+  var t = trainers.find(function(x){return x.id===id;});
+  if (!t) return;
+  if (!confirm('Trainer "'+t.name+'" wirklich löschen?')) return;
+  var r = await sb.from('trainers').delete().eq('id', id);
+  if (r.error) { toast('Fehler: '+r.error.message,'er'); return; }
+  trainers = trainers.filter(function(x){return x.id!==id;});
+  updateMyTrainer();
+  renderTrainerTab();
+  toast('Gelöscht ✓','ok');
+}
+
 // TRAINER ABSENCES
 function renderAbsenceTab() {
   var tbody = document.getElementById('absenceBody');
@@ -1644,6 +1788,9 @@ function getAbsencesForDate(ds) {
 }
 
 // CALENDAR
+function calVisibleEvents() {
+  return events.filter(function(e){ return teamAllowed(e.team); });
+}
 function renderCal() {
   if (calView === 'month') renderMonthCal();
   else renderWeekCal();
@@ -1667,8 +1814,9 @@ function renderMonthCal() {
   var mnths = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
   document.getElementById('calTitle').textContent = mnths[calMonth] + ' ' + calYear;
   var evMap = {};
-  for (var i=0; i<events.length; i++) {
-    var e = events[i];
+  var calEvs = calVisibleEvents();
+  for (var i=0; i<calEvs.length; i++) {
+    var e = calEvs[i];
     if (!evMap[e.date]) evMap[e.date] = [];
     evMap[e.date].push(e);
   }
@@ -1720,8 +1868,9 @@ function renderWeekCal() {
   var mnths = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
   document.getElementById('calTitle').textContent = 'KW ' + getWeekNum(monday) + ' · ' + mnths[monday.getMonth()] + ' ' + monday.getFullYear();
   var evMap = {};
-  for (var i=0; i<events.length; i++) {
-    var e = events[i];
+  var calEvs = calVisibleEvents();
+  for (var i=0; i<calEvs.length; i++) {
+    var e = calEvs[i];
     if (!evMap[e.date]) evMap[e.date] = [];
     evMap[e.date].push(e);
   }
