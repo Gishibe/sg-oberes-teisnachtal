@@ -1518,7 +1518,7 @@ function renderSpieleTab() {
 function renderSonstigeTab() {
   var tbody = document.getElementById('sonstigeBody');
   if (!tbody) return;
-  var sonst = events.filter(function(e){return isSonstige(e.type);}).sort(function(a,b){return b.date.localeCompare(a.date);});
+  var sonst = events.filter(function(e){return isSonstige(e.type)&&teamAllowed(e.team);}).sort(function(a,b){return b.date.localeCompare(a.date);});
   if (!sonst.length) {
     tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">&#128204;</div><div class="empty-title">Keine sonstigen Termine</div></div></td></tr>';
     return;
@@ -1526,7 +1526,8 @@ function renderSonstigeTab() {
   var rows = '';
   for (var i=0;i<sonst.length;i++) {
     var e = sonst[i];
-    rows += '<tr>' +
+    var cbTt4 = e.created_by ? ' title="Erstellt von: ' + e.created_by + '"' : '';
+    rows += '<tr' + cbTt4 + '>' +
       '<td><b>' + fmtDate(e.date,{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}) + '</b>' + (e.time?'<br><small>'+fmtTime(e.time)+'</small>':'') + '</td>' +
       '<td>' + badge('b-pink', e.type) + '</td>' +
       '<td>' + (e.notes||'–') + '</td>' +
