@@ -605,6 +605,21 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
 }
 
 .ng-note{font-size:12px;color:var(--gyd);margin-top:3px;line-height:1.4;white-space:pre-wrap;}
+
+/* AUFSTELLUNGSPLANER */
+.pitch{position:relative;width:100%;aspect-ratio:2/3;max-height:52vh;background:linear-gradient(180deg,#2d7a3a 0%,#256b31 50%,#2d7a3a 100%);border:2px solid #fff;border-radius:6px;overflow:hidden;touch-action:none;}
+.pitch-line{position:absolute;background:rgba(255,255,255,.7);}
+.pitch-mid{left:0;right:0;top:50%;height:2px;}
+.pitch-circle{position:absolute;left:50%;top:50%;width:26%;aspect-ratio:1;border:2px solid rgba(255,255,255,.7);border-radius:50%;transform:translate(-50%,-50%);}
+.pitch-box{position:absolute;left:25%;width:50%;height:14%;border:2px solid rgba(255,255,255,.7);}
+.pitch-box-top{top:0;border-top:none;}
+.pitch-box-bot{bottom:0;border-bottom:none;}
+.lineup-pool{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;min-height:44px;padding:8px;background:var(--gyb);border-radius:8px;border:1.5px dashed var(--gybl);}
+.lineup-chip{display:inline-flex;align-items:center;gap:3px;padding:5px 10px;background:#111827;color:#fff;border-radius:20px;font-size:11px;font-weight:600;cursor:grab;user-select:none;touch-action:none;white-space:nowrap;box-shadow:var(--sh);}
+.lineup-chip b{color:#fbbf24;}
+.lineup-chip:active{cursor:grabbing;}
+
+.modal-wide{max-width:520px!important;width:94vw!important;}
 </style>
 </head>
 <body data-version="v1.8 – 24.07. 15:58">
@@ -798,6 +813,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;}
       <div class="page-header"><div class="page-title">Auswertung</div></div>
       <div class="page-body">
         <div class="stat-grid" id="ausStatGrid"></div>
+        <div id="ausBilanz"></div>
         <div id="ausRankGrid"></div>
         <div class="card">
           <div class="card-head"><div class="card-head-title">Alle Spieler &ndash; Detail&uuml;bersicht</div></div>
@@ -1505,6 +1521,7 @@ function renderSpieleTab() {
       '<td><div class="tbl-actions">' +
         btn('btn-ghost btn-sm', "openAttModal('" + e.id + "')", '&#x1F4CB;') +
         btn('btn-ghost btn-sm', "openDutiesModal('" + e.id + "')", '&#x1F46A;') +
+        btn('btn-ghost btn-sm', "openLineupModal('" + e.id + "')", '&#x26BD;') +
         btn('btn-ghost btn-sm', "openEventModal('" + esc(e.type) + "','" + e.id + "')", '&#x270F;&#xFE0F;') +
         btn('btn-ghost btn-sm', "confirmDelete('event','" + e.id + "','" + esc(e.opponent || e.type) + " " + esc(fmtDate(e.date)) + "')", '&#x1F5D1;&#xFE0F;') +
       '</div></td>' +
@@ -1621,6 +1638,188 @@ async function deleteTeam(teamId, seasonId) {
   toast('Mannschaft entfernt ✓','ok');
 }
 
+
+// PLAYER HISTORY ACROSS SEASONS
+async function openPlayerHistory(pid) {
+  var p = players.find(function(x){return x.id===pid;});
+  if (!p) return;
+  showModal(
+    '<div class="modal-head"><div class="modal-title">' + p.name + ' – Saison-Historie</div><button class="modal-x" onclick="closeModal()">&times;</button></div>' +
+    '<div class="modal-body" id="histBody"><div style="text-align:center;padding:20px;color:var(--gy);">Lädt...</div></div>' +
+    '<div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Schließen</button></div>'
+  );
+  try {
+    var rEv = await sb.from('events').select('id,season_id,type,date');
+    var allEv = rEv.data || [];
+    var evIds = allEv.map(function(e){return e.id;});
+    var rAt = await sb.from('attendance').select('event_id,status').eq('player_id', pid);
+    var myAtt = rAt.data || [];
+    var rGo = await sb.from('goals').select('event_id,goals,assists').eq('player_id', pid);
+    var myGoals = rGo.data || [];
+    var today3 = new Date(); today3.setHours(23,59,59,0);
+    var bySeason = {};
+    seasons.forEach(function(s){ bySeason[s.id] = {name:s.saison, trTotal:0, trAtt:0, spAtt:0, goals:0, assists:0}; });
+    var evMap2 = {};
+    allEv.forEach(function(e){ evMap2[e.id] = e; });
+    allEv.forEach(function(e){
+      if (!bySeason[e.season_id]) return;
+      if (e.type === 'Training' && new Date(e.date) <= today3) bySeason[e.season_id].trTotal++;
+    });
+    myAtt.forEach(function(a){
+      var e = evMap2[a.event_id]; if (!e || !bySeason[e.season_id]) return;
+      if (a.status !== 'anwesend') return;
+      if (e.type === 'Training') bySeason[e.season_id].trAtt++;
+      else bySeason[e.season_id].spAtt++;
+    });
+    myGoals.forEach(function(g){
+      var e = evMap2[g.event_id]; if (!e || !bySeason[e.season_id]) return;
+      bySeason[e.season_id].goals += (g.goals||0);
+      bySeason[e.season_id].assists += (g.assists||0);
+    });
+    var rows = '';
+    seasons.slice().sort(function(a,b){return b.saison.localeCompare(a.saison);}).forEach(function(s){
+      var d = bySeason[s.id];
+      if (!d || (d.trTotal===0 && d.trAtt===0 && d.spAtt===0 && d.goals===0)) return;
+      var pct = d.trTotal ? Math.round(d.trAtt/d.trTotal*100) : 0;
+      rows += '<tr>' +
+        '<td style="font-weight:600;">' + d.name + '</td>' +
+        '<td>' + d.trAtt + '/' + d.trTotal + ' <span style="color:var(--gy);font-size:11px;">(' + pct + '%)</span></td>' +
+        '<td>' + d.spAtt + '</td>' +
+        '<td>' + (d.goals || '–') + '</td>' +
+        '<td>' + (d.assists || '–') + '</td>' +
+      '</tr>';
+    });
+    document.getElementById('histBody').innerHTML = rows
+      ? '<table class="tbl"><thead><tr><th>Saison</th><th>Training</th><th>Spiele</th><th>Tore</th><th>Assists</th></tr></thead><tbody>' + rows + '</tbody></table>'
+      : '<div style="text-align:center;padding:20px;color:var(--gy);">Keine Daten vorhanden.</div>';
+  } catch(e) {
+    document.getElementById('histBody').innerHTML = '<div style="color:var(--rd);">Fehler: ' + e.message + '</div>';
+  }
+}
+
+// AUFSTELLUNGSPLANER
+var lineupPos = {}; // player_id -> {x,y}
+var lineupEvId = null;
+var dragPid = null;
+async function openLineupModal(evId) {
+  var ev = events.find(function(e){return e.id===evId;});
+  if (!ev) return;
+  lineupEvId = evId;
+  lineupPos = {};
+  try {
+    var r = await sb.from('lineups').select('*').eq('event_id', evId);
+    (r.data||[]).forEach(function(l){ lineupPos[l.player_id] = {x:l.pos_x, y:l.pos_y}; });
+  } catch(e) {}
+  var pool = players.filter(function(p){
+    if (p.active === false) return false;
+    if (!ev.team) return playerAllowed(p);
+    return (playerTeams[p.id]||[]).indexOf(ev.team) >= 0;
+  }).sort(function(a,b){return (a.jersey_number||999)-(b.jersey_number||999);});
+  var title = (ev.opponent || ev.type) + ' – ' + fmtDate(ev.date);
+  showModal(
+    '<div class="modal-head"><div class="modal-title">Aufstellung: ' + title + '</div><button class="modal-x" onclick="closeModal()">&times;</button></div>' +
+    '<div class="modal-body" style="max-height:70vh;">' +
+      '<div style="font-size:11px;color:var(--gy);margin-bottom:8px;">Spieler aus dem Pool aufs Feld ziehen. Zum Entfernen zurück in den Pool ziehen.</div>' +
+      '<div class="pitch" id="pitch">' +
+        '<div class="pitch-line pitch-mid"></div>' +
+        '<div class="pitch-circle"></div>' +
+        '<div class="pitch-box pitch-box-top"></div>' +
+        '<div class="pitch-box pitch-box-bot"></div>' +
+      '</div>' +
+      '<div class="lineup-pool" id="lineupPool"></div>' +
+    '</div>' +
+    '<div class="modal-foot">' +
+      '<button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>' +
+      '<button class="btn btn-blue" onclick="saveLineup()">Speichern</button>' +
+    '</div>'
+  );
+  var mb = document.getElementById('modalBox');
+  if (mb) mb.classList.add('modal-wide');
+  window._lineupPool = pool;
+  renderLineup();
+}
+function renderLineup() {
+  var pitch = document.getElementById('pitch');
+  var poolEl = document.getElementById('lineupPool');
+  if (!pitch || !poolEl) return;
+  pitch.querySelectorAll('.lineup-chip').forEach(function(c){c.remove();});
+  poolEl.innerHTML = '';
+  (window._lineupPool||[]).forEach(function(p){
+    var chip = document.createElement('div');
+    chip.className = 'lineup-chip';
+    chip.setAttribute('data-pid', p.id);
+    var nm = p.name.split(' ');
+    chip.innerHTML = (p.jersey_number?'<b>'+p.jersey_number+'</b> ':'') + nm[nm.length-1];
+    chip.addEventListener('pointerdown', lineupDragStart);
+    if (lineupPos[p.id]) {
+      chip.style.position = 'absolute';
+      chip.style.left = lineupPos[p.id].x + '%';
+      chip.style.top = lineupPos[p.id].y + '%';
+      chip.style.transform = 'translate(-50%,-50%)';
+      pitch.appendChild(chip);
+    } else {
+      poolEl.appendChild(chip);
+    }
+  });
+}
+function lineupDragStart(ev) {
+  ev.preventDefault();
+  var chip = ev.currentTarget;
+  dragPid = chip.getAttribute('data-pid');
+  chip.setPointerCapture(ev.pointerId);
+  chip.style.zIndex = 50;
+  chip.addEventListener('pointermove', lineupDragMove);
+  chip.addEventListener('pointerup', lineupDragEnd);
+}
+function lineupDragMove(ev) {
+  var pitch = document.getElementById('pitch');
+  if (!pitch || !dragPid) return;
+  var r = pitch.getBoundingClientRect();
+  var x = ((ev.clientX - r.left) / r.width) * 100;
+  var y = ((ev.clientY - r.top) / r.height) * 100;
+  var chip = ev.currentTarget;
+  if (x >= 0 && x <= 100 && y >= 0 && y <= 100) {
+    if (chip.parentElement !== pitch) {
+      pitch.appendChild(chip);
+      chip.style.position = 'absolute';
+      chip.style.transform = 'translate(-50%,-50%)';
+    }
+    chip.style.left = x + '%';
+    chip.style.top = y + '%';
+  }
+}
+function lineupDragEnd(ev) {
+  var chip = ev.currentTarget;
+  chip.removeEventListener('pointermove', lineupDragMove);
+  chip.removeEventListener('pointerup', lineupDragEnd);
+  chip.style.zIndex = '';
+  var pitch = document.getElementById('pitch');
+  var pid = chip.getAttribute('data-pid');
+  if (!pitch || !pid) { dragPid = null; return; }
+  var r = pitch.getBoundingClientRect();
+  var x = ((ev.clientX - r.left) / r.width) * 100;
+  var y = ((ev.clientY - r.top) / r.height) * 100;
+  if (x < 0 || x > 100 || y < 0 || y > 100) {
+    delete lineupPos[pid];
+  } else {
+    lineupPos[pid] = {x: Math.round(x*10)/10, y: Math.round(y*10)/10};
+  }
+  dragPid = null;
+  renderLineup();
+}
+async function saveLineup() {
+  if (!lineupEvId) return;
+  await sb.from('lineups').delete().eq('event_id', lineupEvId);
+  var rows = Object.keys(lineupPos).map(function(pid){
+    return {event_id: lineupEvId, player_id: pid, pos_x: lineupPos[pid].x, pos_y: lineupPos[pid].y};
+  });
+  if (rows.length) {
+    var r = await sb.from('lineups').insert(rows);
+    if (r.error) { toast('Fehler: ' + r.error.message, 'er'); return; }
+  }
+  closeModal();
+  toast('Aufstellung gespeichert ✓', 'ok');
+}
 
 // TRAINER MANAGEMENT
 function renderTrainerTab() {
@@ -1954,6 +2153,19 @@ function renderUpcoming() {
 }
 
 // AUSWERTUNG
+function calcBilanz(spEvents) {
+  var w=0,d=0,l=0,gf=0,ga=0;
+  for (var i=0;i<spEvents.length;i++) {
+    var sc=(spEvents[i].score||'').trim();
+    var m=sc.match(/^(\d+)\s*:\s*(\d+)$/);
+    if(!m) continue;
+    var a=parseInt(m[1]),b=parseInt(m[2]);
+    gf+=a; ga+=b;
+    if(a>b)w++; else if(a<b)l++; else d++;
+  }
+  return {w:w,d:d,l:l,gf:gf,ga:ga,total:w+d+l};
+}
+
 function renderAuswertung() {
   var filtPl=getFilteredPlayers();
   var filtEv=getFilteredEvents();
@@ -1971,6 +2183,20 @@ function renderAuswertung() {
     '<div class="stat-card"><div class="stat-val">' + trs.length + '</div><div class="stat-lbl">Trainings</div></div>' +
     '<div class="stat-card"><div class="stat-val">' + sps.length + '</div><div class="stat-lbl">Spiele</div></div>' +
     '<div class="stat-card" style="border-left-color:var(--gnl)"><div class="stat-val" style="color:var(--gnl)">' + avgAtt + '%</div><div class="stat-lbl">Ø Anwesenheit Training</div><div class="stat-sub">' + totalGoals + ' Tore gesamt</div></div>';
+  var bl = calcBilanz(sps);
+  var blHtml = bl.total > 0
+    ? '<div class="card" style="margin-bottom:16px;"><div class="card-head"><div class="card-head-title">Saisonbilanz</div></div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:18px;padding:14px 16px;align-items:center;">'
+      + '<div style="display:flex;gap:8px;">'
+      + '<span class="badge b-green" style="font-size:14px;padding:6px 12px;">' + bl.w + ' S</span>'
+      + '<span class="badge b-gray" style="font-size:14px;padding:6px 12px;">' + bl.d + ' U</span>'
+      + '<span class="badge" style="font-size:14px;padding:6px 12px;background:var(--rdp);color:var(--rd);">' + bl.l + ' N</span>'
+      + '</div>'
+      + '<div style="font-size:14px;"><b>' + bl.gf + ':' + bl.ga + '</b> <span style="color:var(--gy);">Tore (' + (bl.gf-bl.ga>=0?'+':'') + (bl.gf-bl.ga) + ')</span></div>'
+      + '<div style="font-size:12px;color:var(--gy);">' + bl.total + ' gewertete Spiele</div>'
+      + '</div></div>'
+    : '';
+  document.getElementById('ausBilanz').innerHTML = blHtml;
 
   var en = filtPl.map(function(p) {
     return {
@@ -2014,7 +2240,7 @@ function renderAuswertung() {
     var p = sorted[i];
     var tp = trs.length > 0 ? Math.round(p.tC/trs.length*100) : 0;
     rows += '<tr>' +
-      '<td><div style="display:flex;align-items:center;gap:8px;">' + av(p,30) + (p.jersey_number?jersey(p.jersey_number,true):'') + '<span style="font-weight:600;">' + p.name + '</span></div></td>' +
+      '<td><div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="openPlayerHistory(\'' + p.id + '\')" title="Saison-Historie anzeigen">' + av(p,30) + (p.jersey_number?jersey(p.jersey_number,true):'') + '<span style="font-weight:600;text-decoration:underline dotted;text-underline-offset:3px;">' + p.name + '</span></div></td>' +
       '<td><b>' + p.tC + '</b><span style="color:var(--gy)"> /' + trs.length + '</span></td>' +
       '<td><div class="prog"><div class="prog-bg"><div class="prog-fg ' + progClass(tp) + '" style="width:' + tp + '%"></div></div><span class="prog-pct">' + tp + '%</span></div></td>' +
       '<td>' + p.sC + '/' + sps.length + '</td>' +
@@ -2785,7 +3011,11 @@ function showModal(html) {
   document.getElementById('modalBox').innerHTML = html;
   document.getElementById('modalBg').classList.remove('h');
 }
-function closeModal() { document.getElementById('modalBg').classList.add('h'); }
+function closeModal() {
+  document.getElementById('modalBg').classList.add('h');
+  var mbx = document.getElementById('modalBox');
+  if (mbx) mbx.classList.remove('modal-wide');
+}
 function closeConfirm() { document.getElementById('confirmBg').classList.add('h'); }
 
 document.addEventListener('DOMContentLoaded', function() {
