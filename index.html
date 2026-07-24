@@ -1115,7 +1115,7 @@ function isSonstige(t){return t==='Vereinsfest'||t==='Elternabend'||t==='Sonstig
 function getFilteredEvents(){
   var base = events.filter(function(e){ return teamAllowed(e.team); });
   if(curTeam==='Alle') return base;
-  return base.filter(function(e){return !e.team||e.team===curTeam;});
+  return base.filter(function(e){return e.team===curTeam;});
 }
 
 function buildSeasonDropdown() {
@@ -1520,7 +1520,11 @@ function renderSpieleTab() {
 function renderSonstigeTab() {
   var tbody = document.getElementById('sonstigeBody');
   if (!tbody) return;
-  var sonst = events.filter(function(e){return isSonstige(e.type)&&teamAllowed(e.team);}).sort(function(a,b){return b.date.localeCompare(a.date);});
+  var sonst = events.filter(function(e){
+    if (!isSonstige(e.type)||!teamAllowed(e.team)) return false;
+    if (curTeam !== 'Alle' && e.team !== curTeam) return false;
+    return true;
+  }).sort(function(a,b){return b.date.localeCompare(a.date);});
   if (!sonst.length) {
     tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">&#128204;</div><div class="empty-title">Keine sonstigen Termine</div></div></td></tr>';
     return;
@@ -1799,7 +1803,11 @@ function getAbsencesForDate(ds) {
 
 // CALENDAR
 function calVisibleEvents() {
-  return events.filter(function(e){ return teamAllowed(e.team); });
+  return events.filter(function(e){
+    if (!teamAllowed(e.team)) return false;
+    if (curTeam !== 'Alle' && e.team !== curTeam) return false;
+    return true;
+  });
 }
 function renderCal() {
   if (calView === 'month') renderMonthCal();
