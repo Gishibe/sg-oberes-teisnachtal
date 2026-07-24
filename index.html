@@ -1526,7 +1526,7 @@ function renderSonstigeTab() {
     return true;
   }).sort(function(a,b){return b.date.localeCompare(a.date);});
   if (!sonst.length) {
-    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">&#128204;</div><div class="empty-title">Keine sonstigen Termine</div></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">&#128204;</div><div class="empty-title">Keine sonstigen Termine</div></div></td></tr>';
     return;
   }
   var rows = '';
@@ -1536,6 +1536,7 @@ function renderSonstigeTab() {
     rows += '<tr' + cbTt4 + '>' +
       '<td><b>' + fmtDate(e.date,{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}) + '</b>' + (e.time?'<br><small>'+fmtTime(e.time)+'</small>':'') + '</td>' +
       '<td>' + badge('b-pink', e.type) + '</td>' +
+      '<td>' + (e.team ? badge('b-blue', e.team) : badge('b-gold', 'Alle')) + '</td>' +
       '<td>' + (e.notes||'–') + '</td>' +
       '<td>' + (e.location||'–') + '</td>' +
       '<td><div class="tbl-actions">' +
