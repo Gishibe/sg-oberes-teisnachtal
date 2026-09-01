@@ -10,13 +10,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Datenbank abfragen
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          TABELLE: einstellungen
         run: |
-          code=$(curl -sS -o /dev/null -w '%{http_code}' \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/einstellungen?select=id&limit=1")
-          echo "Antwort der Datenbank: $code"
+          # evtl. abschliessenden Schraegstrich aus dem Secret entfernen
+          basis="${SUPABASE_URL%/}"
+          ziel="$basis/rest/v1/$TABELLE?select=*&limit=1"
+          echo "Angefragte Tabelle: $TABELLE"
+
+          # Body und Statuscode gemeinsam holen, Statuscode in der letzten Zeile
+          antwort=$(curl -sS -w $'\n%{http_code}' \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$ziel")
+
+          code=$(printf '%s' "$antwort" | tail -n 1)
+          body=$(printf '%s' "$antwort" | sed '$d')
+
+          echo "Statuscode: $code"
+          echo "Antwort der Datenbank: $body"
+
           if [ "$code" != "200" ]; then
-            echo "::error::Die Datenbank hat mit $code geantwortet."
+            echo "::error::Die Datenbank hat mit $code geantwortet: $body"
             exit 1
           fi
+
+          echo "Datenbank ist wach."
