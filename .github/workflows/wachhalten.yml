@@ -13,7 +13,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          TABELLE: einstellungen
+          TABELLE: keepalive
         run: |
           # ---- 1. Secrets pruefen -------------------------------------
           if [ -z "$SUPABASE_URL" ]; then
