@@ -15,20 +15,46 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           TABELLE: einstellungen
         run: |
-          # Basis-URL normalisieren: Schraegstrich und ein evtl. schon
-          # im Secret enthaltenes /rest/v1 entfernen (sonst PGRST125)
-          basis="${SUPABASE_URL%/}"
+          # ---- 1. Secrets pruefen -------------------------------------
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "::error::Das Secret SUPABASE_URL ist leer oder existiert nicht."
+            exit 1
+          fi
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::Das Secret SUPABASE_ANON_KEY ist leer oder existiert nicht."
+            exit 1
+          fi
+
+          # ---- 2. URL saeubern ----------------------------------------
+          # Leerzeichen, Zeilenumbrueche und Anfuehrungszeichen entfernen
+          basis=$(printf '%s' "$SUPABASE_URL" | tr -d '[:space:]' | tr -d '"'"'")
+          basis="${basis%/}"
           basis="${basis%/rest/v1}"
           basis="${basis%/}"
+
+          # ---- 3. URL kontrollieren -----------------------------------
+          case "$basis" in
+            https://*.supabase.co) ;;
+            https://*)
+              echo "Warnung: URL endet nicht auf .supabase.co - eigene Domain?" ;;
+            *)
+              echo "::error::SUPABASE_URL beginnt nicht mit https:// (Laenge: ${#basis} Zeichen)."
+              echo "Erwartet wird genau: https://<projekt-ref>.supabase.co"
+              exit 1 ;;
+          esac
+
+          host="${basis#https://}"
+          host="${host%%/*}"
+          echo "Hostname: $host"
+
+          # ---- 4. Abfrage ---------------------------------------------
           pfad="/rest/v1/$TABELLE?select=*&limit=1"
-          ziel="$basis$pfad"
           echo "Angefragter Pfad: $pfad"
 
-          # Body und Statuscode gemeinsam holen, Statuscode in der letzten Zeile
           antwort=$(curl -sS -w $'\n%{http_code}' \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
-            "$ziel")
+            "$basis$pfad")
 
           code=$(printf '%s' "$antwort" | tail -n 1)
           body=$(printf '%s' "$antwort" | sed '$d')
