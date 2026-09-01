@@ -15,10 +15,14 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           TABELLE: einstellungen
         run: |
-          # evtl. abschliessenden Schraegstrich aus dem Secret entfernen
+          # Basis-URL normalisieren: Schraegstrich und ein evtl. schon
+          # im Secret enthaltenes /rest/v1 entfernen (sonst PGRST125)
           basis="${SUPABASE_URL%/}"
-          ziel="$basis/rest/v1/$TABELLE?select=*&limit=1"
-          echo "Angefragte Tabelle: $TABELLE"
+          basis="${basis%/rest/v1}"
+          basis="${basis%/}"
+          pfad="/rest/v1/$TABELLE?select=*&limit=1"
+          ziel="$basis$pfad"
+          echo "Angefragter Pfad: $pfad"
 
           # Body und Statuscode gemeinsam holen, Statuscode in der letzten Zeile
           antwort=$(curl -sS -w $'\n%{http_code}' \
