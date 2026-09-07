@@ -1,5 +1,5 @@
 // SG oberes Teisnachtal - Service Worker
-const CACHE = 'sgot-v1';
+const CACHE = 'sgot-v2';
 self.addEventListener('install', e => { self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys =>
@@ -8,9 +8,9 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  // Nur eigene Seite cachen, Supabase-API immer live
   const url = new URL(e.request.url);
-  if (url.hostname.includes('supabase.co')) return;
+  // Nur eigene Seite cachen - Supabase und fussball.de immer live
+  if (url.origin !== self.location.origin) return;
   e.respondWith(
     fetch(e.request).then(res => {
       const copy = res.clone();
